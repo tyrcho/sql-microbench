@@ -74,6 +74,7 @@
 							<shadedArtifactAttached>false</shadedArtifactAttached>
 							<createDependencyReducedPom>false</createDependencyReducedPom>
 							<minimizeJar>false</minimizeJar>
+							<finalName>microbench</finalName>
 							<artifactSet>
 								<excludes>
 									<exclude>*:*:*:test</exclude>
