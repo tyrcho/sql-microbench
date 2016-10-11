@@ -3,18 +3,15 @@ import scala.util.Random
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
 
-object MysqlClient extends App with Requests {
-  val schema = "test"
-  val ip = "oscobai052s.sys.meshcore.net"
-  val ip2 = "oscobai151s.sys.meshcore.net"
-//  val DB_URL = s"jdbc:mysql://$ip:3306/$schema?cacheResultsetMetadata=true"
-  val DB_URL = s"jdbc:mysql:loadbalance://$ip:3306,$ip2:3306/$schema?cacheResultsetMetadata=true"
-  val USER = "root"
-  val PASS = "root"
+import com.typesafe.config.ConfigFactory
+import java.io.File
 
-  val parallelism = 32
-  val insertCount = 100000
-  val selectCount = 100000
+object MysqlClient extends App with Requests {
+  val conf = ConfigFactory.parseFile(new File("bench.conf"))
+
+  val parallelism = conf.getInt("bench.threads")
+  val insertCount = conf.getInt("bench.insertCount")
+  val selectCount = conf.getInt("bench.selectCount")
 
   val conn = connect
   execute(dropTable, conn)
@@ -52,9 +49,12 @@ object MysqlClient extends App with Requests {
   }
 
   def connect = {
-    Class.forName("com.mysql.jdbc.Driver").newInstance()
-    println("Connecting to database...")
-    val conn = DriverManager.getConnection(DB_URL, USER, PASS)
+    val url = conf.getString("jdbc.url")
+    val user = conf.getString("jdbc.user")
+    val password = conf.getString("jdbc.password")
+    Class.forName(conf.getString("jdbc.driver")).newInstance()
+    println(s"Connecting to database $url")
+    val conn = DriverManager.getConnection(url, user, password)
     conn.setAutoCommit(true)
     println("Connected !")
     conn
