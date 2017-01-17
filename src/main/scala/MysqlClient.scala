@@ -9,13 +9,16 @@ import java.io.File
 object MysqlClient extends App with Requests {
   val conf = ConfigFactory.parseFile(new File("bench.conf"))
 
-  val parallelism = conf.getInt("bench.threads")
-  val insertCount = conf.getInt("bench.insertCount")
-  val selectCount = conf.getInt("bench.selectCount")
+  val insertParallelism = conf.getInt("bench.insert.threads")
+  val selectParallelism = conf.getInt("bench.select.threads")
+  val insertCount = conf.getInt("bench.insert.count")
+  val selectCount = conf.getInt("bench.select.count")
 
-  val conn = connect
-  execute(dropTable, conn)
-  execute(createTable, conn)
+  {
+    val conn = connect
+    execute(dropTable, conn)
+    execute(createTable, conn)
+  }
 
   time(insertN(insertCount), s"insert $insertCount records")
   time(selectN(selectCount), s"select $selectCount records")
@@ -26,7 +29,7 @@ object MysqlClient extends App with Requests {
       val v = Seq(i.toString, "desc" + i)
       insert(keys, v)
     }, s"generate $count values").par
-    sqlLines.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(parallelism))
+    sqlLines.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(insertParallelism))
     val connections = collection.mutable.Map.empty[Long, Connection]
     for (sql <- sqlLines) {
       val c = connections.getOrElseUpdate(Thread.currentThread.getId, connect)
@@ -35,12 +38,12 @@ object MysqlClient extends App with Requests {
   }
 
   def selectN(count: Int) = {
-    val ids = (0 until selectCount).par
-    ids.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(parallelism))
+    val ids =  Seq.fill(selectCount)(Random.nextInt(insertCount)).par
+    ids.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(selectParallelism))
     val connections = collection.mutable.Map.empty[Long, Connection]
     for (i <- ids) {
       val c = connections.getOrElseUpdate(Thread.currentThread.getId, connect)
-      val s = conn.prepareStatement(s"select dsc from $tableName where id=?")
+      val s = c.prepareStatement(s"select dsc from $tableName where id=?")
       s.setInt(1, i)
       val rs = s.executeQuery()
       rs.next()
@@ -79,7 +82,7 @@ object MysqlClient extends App with Requests {
 }
 
 trait Requests {
-  val engine = "NDB"
+  val engine = "INNODB"
   val tableName = "simple_table"
   val createTable = s"""
 CREATE TABLE $tableName (
